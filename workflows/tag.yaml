@@ -1,0 +1,50 @@
+name: Tag Release
+
+on:
+  workflow_call:
+    inputs:
+      pkg_version:
+        required: true
+        type: string
+
+jobs:
+  tag:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash -l {0}
+    permissions:
+      contents: write
+
+    steps:
+      - name: 🤖 Generate app token
+        uses: actions/create-github-app-token@1b10c78c7865c340bc4f6099eb2f838309f1e8c3 # v3.1.1
+        id: app-token-tag
+        with:
+          app-id: ${{ vars.BOT1_APP_ID }}
+          private-key: ${{ secrets.BOT1_APP_PRIVATE_KEY }}
+      - name: 🚚 Code checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          token: ${{ steps.app-token-tag.outputs.token }}
+      - name: 📥 Pull latest commits
+        id: get_sha
+        run: |
+          git pull --no-rebase
+          git --no-pager log --decorate=short --pretty=oneline -n3
+          LATEST_COMMIT_HASH="$(git --no-pager log -1 --format='%H')"
+          echo "latest_commit_hash=${LATEST_COMMIT_HASH}" >> $GITHUB_OUTPUT
+      - name: 🔖 Create tag
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          LATEST_COMMIT_HASH: ${{ steps.get_sha.outputs.latest_commit_hash }}
+        with:
+          script: |
+            const the_tag_name = 'refs/tags/v' + '${{ inputs.pkg_version }}'
+            const the_sha = process.env.LATEST_COMMIT_HASH
+            github.rest.git.createRef({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              ref: the_tag_name,
+              sha: the_sha
+            })

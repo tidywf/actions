@@ -1,0 +1,97 @@
+name: Conda Deploy
+
+on:
+  workflow_call:
+    inputs:
+      pkg_name:
+        required: true
+        type: string
+      pkg_version:
+        required: true
+        type: string
+      conda_org:
+        required: false
+        type: string
+        default: tidywf
+      dir_conda_recipe:
+        required: false
+        type: string
+        default: deploy/conda/recipe
+      dir_conda_env_yaml:
+        required: false
+        type: string
+        default: deploy/conda/env/yaml
+      dir_conda_env_lock:
+        required: false
+        type: string
+        default: deploy/conda/env/lock
+
+jobs:
+  conda_deploy:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash -l {0}
+    permissions:
+      contents: write
+
+    steps:
+      - name: 🤖 Generate app token
+        uses: actions/create-github-app-token@1b10c78c7865c340bc4f6099eb2f838309f1e8c3 # v3.1.1
+        id: app-token1
+        with:
+          app-id: ${{ vars.BOT1_APP_ID }}
+          private-key: ${{ secrets.BOT1_APP_PRIVATE_KEY }}
+      - name: 🚚 Code checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          token: ${{ steps.app-token1.outputs.token }} # branch write override
+      - name: 👾 Miniforge setup
+        uses: conda-incubator/setup-miniconda@8ee1f361103df19b6f8c8655fd3967a8ecb162d5 # v4.0.1
+        with:
+          auto-update-conda: true
+          environment-file: ${{ inputs.dir_conda_env_yaml }}/condabuild.yaml
+          activate-environment: condabuild_env
+          miniforge-version: latest
+      - name: 🐍 Conda pkg build
+        run: |
+          EXTRA_CHANNEL=""
+          [[ "${{ github.ref }}" == "refs/heads/dev" ]] && EXTRA_CHANNEL="--channel ${{ inputs.conda_org }}/label/dev"
+          rattler-build build \
+            ${EXTRA_CHANNEL} \
+            --channel ${{ inputs.conda_org }} \
+            --channel conda-forge \
+            --recipe ${{ inputs.dir_conda_recipe }}/recipe.yaml \
+            --output-dir ${RUNNER_TEMP}/out1
+      - name: 🐍 Conda pkg upload
+        run: |
+          pkg_path=$(find ${RUNNER_TEMP}/out1 -type f -name "*.conda")
+          LABEL_ARG=""
+          [[ "${{ github.ref }}" == "refs/heads/dev" ]] && LABEL_ARG="--channel dev"
+          rattler-build upload anaconda \
+            --owner ${{ inputs.conda_org }} \
+            --api-key ${{ secrets.ANACONDA_UPLOAD_TOKEN }} \
+            ${LABEL_ARG} \
+            ${pkg_path}
+      - name: 🔒 Conda lock
+        run: |
+          CHANNEL_ARGS="--channel ${{ inputs.conda_org }} --channel conda-forge"
+          [[ "${{ github.ref }}" == "refs/heads/dev" ]] && CHANNEL_ARGS="--channel ${{ inputs.conda_org }}/label/dev ${CHANNEL_ARGS}"
+          conda-lock lock \
+            --file ${{ inputs.dir_conda_env_yaml }}/${{ inputs.pkg_name }}.yaml \
+            ${CHANNEL_ARGS} \
+            -p linux-64
+          conda-lock render \
+            -p linux-64 \
+            conda-lock.yml \
+          && rm conda-lock.yml \
+          && mv conda-linux-64.lock ${{ inputs.dir_conda_env_lock }}/
+      - name: 💾 Commit lockfiles
+        env:
+          APP_ID: ${{ vars.BOT1_APP_ID }}
+        run: |
+          git config --local user.email "${APP_ID}+tidywf-ci-bot[bot]@users.noreply.github.com"
+          git config --local user.name "tidywf-ci-bot[bot]"
+          git add .
+          git commit -m "[bot] Updating conda-lock files (v${{ inputs.pkg_version }})"
+          git push

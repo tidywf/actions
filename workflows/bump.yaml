@@ -1,0 +1,76 @@
+name: Bump Version
+
+on:
+  workflow_call:
+    inputs:
+      pkg_name:
+        required: true
+        type: string
+      pkg_version:
+        required: true
+        type: string
+      dir_conda_env_yaml:
+        required: false
+        type: string
+        default: deploy/conda/env/yaml
+      dvc:
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  bump:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash -l {0}
+    permissions:
+      contents: write
+    steps:
+      - name: 🤖 Generate app token
+        uses: actions/create-github-app-token@1b10c78c7865c340bc4f6099eb2f838309f1e8c3 # v3.1.1
+        id: app-token
+        with:
+          app-id: ${{ vars.BOT1_APP_ID }}
+          private-key: ${{ secrets.BOT1_APP_PRIVATE_KEY }}
+      - name: 🚚 Code checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          token: ${{ steps.app-token.outputs.token }}
+      - name: 👾 Miniforge setup
+        uses: conda-incubator/setup-miniconda@8ee1f361103df19b6f8c8655fd3967a8ecb162d5 # v4.0.1
+        with:
+          auto-update-conda: true
+          environment-file: ${{ inputs.dir_conda_env_yaml }}/pkgdown.yaml
+          activate-environment: pkgdown_env
+          miniforge-version: latest
+      - name: DVC setup
+        if: inputs.dvc == true
+        uses: iterative/setup-dvc@4bdfd2b0f6f1ad7e08afadb03b1a895c352a5239 # v2.0.0
+      - name: DVC pull
+        if: inputs.dvc == true
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto
+          AWS_REGION: auto
+        run: dvc pull
+      - name: 📦 Install R pkg from source
+        run: R CMD INSTALL --no-test-load .
+      - name: 🐍 Install bump-my-version
+        run: pip install bump-my-version
+      - name: 🔖 Bump version
+        env:
+          APP_ID: ${{ vars.BOT1_APP_ID }}
+        run: |
+          git config --local user.email "${APP_ID}+tidywf-ci-bot[bot]@users.noreply.github.com"
+          git config --local user.name "tidywf-ci-bot[bot]"
+          bump-my-version bump --new-version ${{ inputs.pkg_version }}
+      - name: 📖 Render README
+        run: quarto render README.qmd
+      - name: 💾 Amend commit
+        run: |
+          git add README.md
+          git commit --amend --no-edit
+      - name: 🚀 Push
+        run: git push
