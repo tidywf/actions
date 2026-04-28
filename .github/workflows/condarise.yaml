@@ -94,4 +94,5 @@ jobs:
           git config --local user.name "tidywf-ci-bot[bot]"
           git add .
           git commit -m "[bot] Updating conda-lock files (v${{ inputs.pkg_version }})"
+          git pull --rebase # to pull in umlise commit
           git push
