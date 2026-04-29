@@ -66,10 +66,10 @@ jobs:
         run: R CMD INSTALL --no-test-load .
       - name: 📖 Render README
         run: quarto render README.qmd
-      - name: 💾 Commit README
+      - name: 💾 Amend commit
         run: |
           git add README.md
-          git diff --staged --quiet || git commit -m "chore: render README"
+          git diff --staged --quiet || git commit --amend --no-edit
       - name: 🚀 Push
         run: |
           git pull --rebase
