@@ -41,8 +41,8 @@ jobs:
         uses: conda-incubator/setup-miniconda@8ee1f361103df19b6f8c8655fd3967a8ecb162d5 # v4.0.1
         with:
           auto-update-conda: true
-          environment-file: ${{ inputs.dir_conda_env_yaml }}/pkgdown.yaml
-          activate-environment: pkgdown_env
+          environment-file: ${{ inputs.dir_conda_env_yaml }}/bump.yaml
+          activate-environment: bump_env
           miniforge-version: latest
       - name: DVC setup
         if: inputs.dvc == true
@@ -55,10 +55,6 @@ jobs:
           AWS_DEFAULT_REGION: auto
           AWS_REGION: auto
         run: dvc pull
-      - name: 📦 Install R pkg from source
-        run: R CMD INSTALL --no-test-load .
-      - name: 🐍 Install bump-my-version
-        run: pip install bump-my-version
       - name: 🔖 Bump version
         env:
           APP_ID: ${{ vars.BOT1_APP_ID }}
@@ -66,11 +62,15 @@ jobs:
           git config --local user.email "${APP_ID}+tidywf-ci-bot[bot]@users.noreply.github.com"
           git config --local user.name "tidywf-ci-bot[bot]"
           bump-my-version bump --new-version ${{ inputs.pkg_version }}
+      - name: 📦 Install R pkg from source
+        run: R CMD INSTALL --no-test-load .
       - name: 📖 Render README
         run: quarto render README.qmd
-      - name: 💾 Amend commit
+      - name: 💾 Commit README
         run: |
           git add README.md
-          git commit --amend --no-edit
+          git diff --staged --quiet || git commit -m "chore: render README"
       - name: 🚀 Push
-        run: git push
+        run: |
+          git pull --rebase
+          git push
