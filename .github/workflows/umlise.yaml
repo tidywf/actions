@@ -18,13 +18,13 @@ jobs:
       contents: write
 
     steps:
-      - name: 🤖 Generate app token
+      - name: 🤖 App token
         uses: actions/create-github-app-token@1b10c78c7865c340bc4f6099eb2f838309f1e8c3 # v3.1.1
         id: app-token-uml
         with:
           client-id: ${{ vars.BOT1_APP_ID }}
           private-key: ${{ secrets.BOT1_APP_PRIVATE_KEY }}
-      - name: 🚚 Code checkout
+      - name: 🚚 Codeout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           token: ${{ steps.app-token-uml.outputs.token }}
@@ -35,7 +35,7 @@ jobs:
           environment-file: ${{ inputs.dir_conda_env_yaml }}/uml.yaml
           activate-environment: uml_env
           miniforge-version: latest
-      - name: 📦 Install R pkg from source
+      - name: 📦 Install from source
         run: R CMD INSTALL --no-test-load .
       - name: 🎨 Generate UML diagram
         run: Rscript inst/scripts/uml.R

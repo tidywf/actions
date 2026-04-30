@@ -27,13 +27,13 @@ jobs:
     permissions:
       contents: write
     steps:
-      - name: 🤖 Generate app token
+      - name: 🤖 App token
         uses: actions/create-github-app-token@1b10c78c7865c340bc4f6099eb2f838309f1e8c3 # v3.1.1
         id: app-token
         with:
           client-id: ${{ vars.BOT1_APP_ID }}
           private-key: ${{ secrets.BOT1_APP_PRIVATE_KEY }}
-      - name: 🚚 Code checkout
+      - name: 🚚 Codeout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           token: ${{ steps.app-token.outputs.token }}
@@ -44,17 +44,19 @@ jobs:
           environment-file: ${{ inputs.dir_conda_env_yaml }}/bump.yaml
           activate-environment: bump_env
           miniforge-version: latest
-      - name: DVC setup
+      - name: ⚙️ DVC setup
         if: inputs.dvc == true
         uses: iterative/setup-dvc@4bdfd2b0f6f1ad7e08afadb03b1a895c352a5239 # v2.0.0
-      - name: DVC pull
+      - name: 🗄️ DVC pull
         if: inputs.dvc == true
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           AWS_DEFAULT_REGION: auto
           AWS_REGION: auto
-        run: dvc pull
+        run: |
+          dvc pull
+          ls -l inst/extdata/*
       - name: 🔖 Bump version
         env:
           APP_ID: ${{ vars.BOT1_APP_ID }}
@@ -62,15 +64,13 @@ jobs:
           git config --local user.email "${APP_ID}+tidywf-ci-bot[bot]@users.noreply.github.com"
           git config --local user.name "tidywf-ci-bot[bot]"
           bump-my-version bump --new-version ${{ inputs.pkg_version }}
-      - name: 📦 Install R pkg from source
+      - name: 📦 Install from source
         run: R CMD INSTALL --no-test-load .
       - name: 📖 Render README
         run: quarto render README.qmd
-      - name: 💾 Amend commit
+      - name: 💾 Commit and push
         run: |
           git add README.md
           git diff --staged --quiet || git commit --amend --no-edit
-      - name: 🚀 Push
-        run: |
           git pull --rebase
           git push
