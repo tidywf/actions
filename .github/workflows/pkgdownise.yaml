@@ -67,8 +67,9 @@ jobs:
       - name: 🌐 Website publish
         env:
           APP_ID: ${{ vars.BOT1_APP_ID }}
+          INPUTS_PKG_NAME: ${{ inputs.pkg_name }}
         run: |
-          Rscript -e "list.files(system.file('extdata', package = '${{ inputs.pkg_name }}'), recursive = TRUE)"
+          Rscript -e "list.files(system.file('extdata', package = '${INPUTS_PKG_NAME}'), recursive = TRUE)"
           git config --local user.email "${APP_ID}+tidywf-ci-bot[bot]@users.noreply.github.com"
           git config --local user.name "tidywf-ci-bot[bot]"
           Rscript -e "pkgdown::deploy_to_branch(pkg = '.', new_process = FALSE)"

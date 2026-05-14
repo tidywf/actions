@@ -56,43 +56,54 @@ jobs:
       - name: 🐍 Conda pkg build
         run: |
           EXTRA_CHANNEL=""
-          [[ "${{ github.ref }}" == "refs/heads/dev" ]] && EXTRA_CHANNEL="--channel ${{ inputs.conda_org }}/label/dev"
+          [[ "${GITHUB_REF}" == "refs/heads/dev" ]] && EXTRA_CHANNEL="--channel ${INPUTS_CONDA_ORG}/label/dev"
           rattler-build build \
             ${EXTRA_CHANNEL} \
-            --channel ${{ inputs.conda_org }} \
+            --channel ${INPUTS_CONDA_ORG} \
             --channel conda-forge \
-            --recipe ${{ inputs.dir_conda_recipe }}/recipe.yaml \
+            --recipe ${INPUTS_DIR_CONDA_RECIPE}/recipe.yaml \
             --output-dir ${RUNNER_TEMP}/out1
+        env:
+          INPUTS_CONDA_ORG: ${{ inputs.conda_org }}
+          INPUTS_DIR_CONDA_RECIPE: ${{ inputs.dir_conda_recipe }}
       - name: 🐍 Conda pkg upload
         run: |
           pkg_path=$(find ${RUNNER_TEMP}/out1 -type f -name "*.conda")
           LABEL_ARG=""
-          [[ "${{ github.ref }}" == "refs/heads/dev" ]] && LABEL_ARG="--channel dev"
+          [[ "${GITHUB_REF}" == "refs/heads/dev" ]] && LABEL_ARG="--channel dev"
           rattler-build upload anaconda \
-            --owner ${{ inputs.conda_org }} \
+            --owner ${INPUTS_CONDA_ORG} \
             --api-key ${{ secrets.ANACONDA_UPLOAD_TOKEN }} \
             ${LABEL_ARG} \
             ${pkg_path}
+        env:
+          INPUTS_CONDA_ORG: ${{ inputs.conda_org }}
       - name: 🔒 Conda lock
         run: |
-          CHANNEL_ARGS="--channel ${{ inputs.conda_org }} --channel conda-forge"
-          [[ "${{ github.ref }}" == "refs/heads/dev" ]] && CHANNEL_ARGS="--channel ${{ inputs.conda_org }}/label/dev ${CHANNEL_ARGS}"
+          CHANNEL_ARGS="--channel ${INPUTS_CONDA_ORG} --channel conda-forge"
+          [[ "${GITHUB_REF}" == "refs/heads/dev" ]] && CHANNEL_ARGS="--channel ${INPUTS_CONDA_ORG}/label/dev ${CHANNEL_ARGS}"
           conda-lock lock \
-            --file ${{ inputs.dir_conda_env_yaml }}/${{ inputs.pkg_name }}.yaml \
+            --file ${INPUTS_DIR_CONDA_ENV_YAML}/${INPUTS_PKG_NAME}.yaml \
             ${CHANNEL_ARGS} \
             -p linux-64
           conda-lock render \
             -p linux-64 \
             conda-lock.yml \
           && rm conda-lock.yml \
-          && mv conda-linux-64.lock ${{ inputs.dir_conda_env_lock }}/
+          && mv conda-linux-64.lock ${INPUTS_DIR_CONDA_ENV_LOCK}/
+        env:
+          INPUTS_CONDA_ORG: ${{ inputs.conda_org }}
+          INPUTS_DIR_CONDA_ENV_YAML: ${{ inputs.dir_conda_env_yaml }}
+          INPUTS_PKG_NAME: ${{ inputs.pkg_name }}
+          INPUTS_DIR_CONDA_ENV_LOCK: ${{ inputs.dir_conda_env_lock }}
       - name: 💾 Commit lockfiles
         env:
           APP_ID: ${{ vars.BOT1_APP_ID }}
+          INPUTS_PKG_VERSION: ${{ inputs.pkg_version }}
         run: |
           git config --local user.email "${APP_ID}+tidywf-ci-bot[bot]@users.noreply.github.com"
           git config --local user.name "tidywf-ci-bot[bot]"
           git add .
-          git commit -m "[bot] Updating conda-lock files (v${{ inputs.pkg_version }})"
+          git commit -m "[bot] Updating conda-lock files (v${INPUTS_PKG_VERSION})"
           git pull --rebase # to pull in umlise commit
           git push

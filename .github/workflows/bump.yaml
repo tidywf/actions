@@ -60,10 +60,11 @@ jobs:
       - name: 🔖 Bump version
         env:
           APP_ID: ${{ vars.BOT1_APP_ID }}
+          INPUTS_PKG_VERSION: ${{ inputs.pkg_version }}
         run: |
           git config --local user.email "${APP_ID}+tidywf-ci-bot[bot]@users.noreply.github.com"
           git config --local user.name "tidywf-ci-bot[bot]"
-          bump-my-version bump --new-version ${{ inputs.pkg_version }}
+          bump-my-version bump --new-version ${INPUTS_PKG_VERSION}
       - name: 📦 Install from source
         run: R CMD INSTALL --no-test-load .
       - name: 📖 Render README
