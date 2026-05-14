@@ -34,7 +34,7 @@ jobs:
           auto-update-conda: true
           environment-file: ${{ inputs.dir_conda_env_yaml }}/uml.yaml
           activate-environment: uml_env
-          miniforge-version: latest
+          miniforge-version: 26.1.0-0 # need to use mamba < 2.6.0 - see conda/conda-lock#906
       - name: 📦 Install from source
         run: R CMD INSTALL --no-test-load .
       - name: 🎨 Generate UML diagram

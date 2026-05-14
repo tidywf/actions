@@ -52,7 +52,7 @@ jobs:
           auto-update-conda: true
           environment-file: ${{ inputs.dir_conda_env_yaml }}/condabuild.yaml
           activate-environment: condabuild_env
-          miniforge-version: latest
+          miniforge-version: 26.1.0-0 # need to use mamba < 2.6.0 - see conda/conda-lock#906
       - name: 🐍 Conda pkg build
         run: |
           EXTRA_CHANNEL=""

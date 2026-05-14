@@ -43,7 +43,7 @@ jobs:
           auto-update-conda: true
           environment-file: ${{ inputs.dir_conda_env_yaml }}/bump.yaml
           activate-environment: bump_env
-          miniforge-version: latest
+          miniforge-version: 26.1.0-0 # need to use mamba < 2.6.0 - see conda/conda-lock#906
       - name: ⚙️ DVC setup
         if: inputs.dvc == true
         uses: iterative/setup-dvc@4bdfd2b0f6f1ad7e08afadb03b1a895c352a5239 # v2.0.0
