@@ -85,12 +85,13 @@ jobs:
           conda-lock lock \
             --file ${INPUTS_DIR_CONDA_ENV_YAML}/${INPUTS_PKG_NAME}.yaml \
             ${CHANNEL_ARGS} \
-            -p linux-64
-          conda-lock render \
             -p linux-64 \
-            conda-lock.yml \
-          && rm conda-lock.yml \
-          && mv conda-linux-64.lock ${INPUTS_DIR_CONDA_ENV_LOCK}/
+            -p linux-aarch64
+          conda-lock render -p linux-64 conda-lock.yml \
+            && mv conda-linux-64.lock ${INPUTS_DIR_CONDA_ENV_LOCK}/
+          conda-lock render -p linux-aarch64 conda-lock.yml \
+            && mv conda-linux-aarch64.lock ${INPUTS_DIR_CONDA_ENV_LOCK}/
+          rm conda-lock.yml
         env:
           INPUTS_CONDA_ORG: ${{ inputs.conda_org }}
           INPUTS_DIR_CONDA_ENV_YAML: ${{ inputs.dir_conda_env_yaml }}
