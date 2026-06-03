@@ -43,4 +43,4 @@ jobs:
           tags: ghcr.io/${{ github.repository }}:${{ inputs.pkg_version }}
           context: .
           push: true
-          platforms: linux/amd64
+          platforms: linux/amd64,linux/arm64
