@@ -76,6 +76,8 @@ jobs:
           INPUTS_PKG_VERSION: ${{ inputs.pkg_version }}
         run: |
           git add .
-          git commit -m "Bump version: ${OLD_VERSION} => ${INPUTS_PKG_VERSION}"
+          if ! git diff --staged --quiet; then
+            git commit -m "Bump version: ${OLD_VERSION} => ${INPUTS_PKG_VERSION}"
+          fi
           git pull --rebase
           git push
