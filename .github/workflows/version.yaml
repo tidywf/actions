@@ -1,0 +1,20 @@
+name: Get Version
+
+on:
+  workflow_call:
+    outputs:
+      pkg_version:
+        description: 'Package version read from DESCRIPTION'
+        value: ${{ jobs.version.outputs.pkg_version }}
+
+jobs:
+  version:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      pkg_version: ${{ steps.get.outputs.pkg_version }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - id: get
+        run: echo "pkg_version=$(grep '^Version:' DESCRIPTION | awk '{print $2}')" >> $GITHUB_OUTPUT
