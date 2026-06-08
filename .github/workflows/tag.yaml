@@ -50,6 +50,6 @@ jobs:
                 sha: the_sha
               })
             } catch (e) {
-              if (e.status !== 422) throw e
+              if (e.status !== 422 || !e.message.includes('Reference already exists')) throw e
               core.warning(`Tag ${the_tag_name} already exists — skipping`)
             }
