@@ -91,10 +91,10 @@ jobs:
             --channel conda-forge \
             -p linux-64 \
             -p linux-aarch64
-          conda-lock render -p linux-64 conda-lock.yml \
-            && mv conda-linux-64.lock ${INPUTS_DIR_CONDA_ENV_LOCK}/
-          conda-lock render -p linux-aarch64 conda-lock.yml \
-            && mv conda-linux-aarch64.lock ${INPUTS_DIR_CONDA_ENV_LOCK}/
+          for plat in linux-64 linux-aarch64; do
+            conda-lock render -p ${plat} conda-lock.yml \
+              && mv conda-${plat}.lock ${INPUTS_DIR_CONDA_ENV_LOCK}/
+          done
           rm conda-lock.yml
         env:
           INPUTS_CONDA_ORG: ${{ inputs.conda_org }}
@@ -105,10 +105,13 @@ jobs:
         env:
           APP_ID: ${{ vars.BOT1_APP_ID }}
           INPUTS_PKG_VERSION: ${{ inputs.pkg_version }}
+          INPUTS_DIR_CONDA_ENV_LOCK: ${{ inputs.dir_conda_env_lock }}
         run: |
           git config --local user.email "${APP_ID}+tidywf-ci-bot[bot]@users.noreply.github.com"
           git config --local user.name "tidywf-ci-bot[bot]"
-          git add .
-          git commit -m "[bot] Updating conda-lock files (v${INPUTS_PKG_VERSION})"
+          git add ${INPUTS_DIR_CONDA_ENV_LOCK}/
+          if ! git diff --staged --quiet; then
+            git commit -m "[bot] Updating conda-lock files (v${INPUTS_PKG_VERSION})"
+          fi
           git pull --rebase # to pull in bump commit
           git push
