@@ -64,7 +64,8 @@ jobs:
         run: |
           git config --local user.email "${APP_ID}+tidywf-ci-bot[bot]@users.noreply.github.com"
           git config --local user.name "tidywf-ci-bot[bot]"
-          echo "OLD_VERSION=$(grep '^Version:' DESCRIPTION | awk '{print $2}')" >> $GITHUB_ENV
+          OLD_VERSION="$(awk -F': *' '$1=="Version"{print $2; found=1} END{exit !found}' DESCRIPTION)"
+          echo "OLD_VERSION=${OLD_VERSION}" >> "$GITHUB_ENV"
           bump-my-version bump --new-version ${INPUTS_PKG_VERSION} --no-commit
       - name: 📦 Install from source
         run: R CMD INSTALL --no-test-load .
