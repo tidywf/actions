@@ -30,7 +30,7 @@ jobs:
       - name: 📥 Pull latest commits
         id: get_sha
         run: |
-          git pull --no-rebase
+          git pull --rebase
           git --no-pager log --decorate=short --pretty=oneline -n3
           LATEST_COMMIT_HASH="$(git --no-pager log -1 --format='%H')"
           echo "latest_commit_hash=${LATEST_COMMIT_HASH}" >> $GITHUB_OUTPUT
@@ -42,9 +42,14 @@ jobs:
           script: |
             const the_tag_name = 'refs/tags/v' + '${{ inputs.pkg_version }}'
             const the_sha = process.env.LATEST_COMMIT_HASH
-            github.rest.git.createRef({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              ref: the_tag_name,
-              sha: the_sha
-            })
+            try {
+              await github.rest.git.createRef({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                ref: the_tag_name,
+                sha: the_sha
+              })
+            } catch (e) {
+              if (e.status !== 422) throw e
+              core.warning(`Tag ${the_tag_name} already exists — skipping`)
+            }
