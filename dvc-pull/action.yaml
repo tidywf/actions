@@ -1,0 +1,24 @@
+name: DVC Pull
+description: Setup DVC and pull test data from S3
+
+inputs:
+  aws_access_key_id:
+    required: true
+  aws_secret_access_key:
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: ⚙️ DVC setup
+      uses: iterative/setup-dvc@4bdfd2b0f6f1ad7e08afadb03b1a895c352a5239 # v2.0.0
+    - name: 🗄️ DVC pull
+      shell: bash
+      env:
+        AWS_ACCESS_KEY_ID: ${{ inputs.aws_access_key_id }}
+        AWS_SECRET_ACCESS_KEY: ${{ inputs.aws_secret_access_key }}
+        AWS_DEFAULT_REGION: auto
+        AWS_REGION: auto
+      run: |
+        dvc pull
+        ls -l inst/extdata/*
