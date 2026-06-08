@@ -64,14 +64,20 @@ jobs:
         run: |
           git config --local user.email "${APP_ID}+tidywf-ci-bot[bot]@users.noreply.github.com"
           git config --local user.name "tidywf-ci-bot[bot]"
-          bump-my-version bump --new-version ${INPUTS_PKG_VERSION}
+          OLD_VERSION="$(awk -F': *' '$1=="Version"{print $2; found=1} END{exit !found}' DESCRIPTION)"
+          echo "OLD_VERSION=${OLD_VERSION}" >> "$GITHUB_ENV"
+          bump-my-version bump --new-version ${INPUTS_PKG_VERSION} --no-commit
       - name: 📦 Install from source
         run: R CMD INSTALL --no-test-load .
       - name: 📖 Render README
         run: quarto render README.qmd
       - name: 💾 Commit and push
+        env:
+          INPUTS_PKG_VERSION: ${{ inputs.pkg_version }}
         run: |
-          git add README.md
-          git diff --staged --quiet || git commit --amend --no-edit
+          git add .
+          if ! git diff --staged --quiet; then
+            git commit -m "Bump version: ${OLD_VERSION} => ${INPUTS_PKG_VERSION}"
+          fi
           git pull --rebase
           git push

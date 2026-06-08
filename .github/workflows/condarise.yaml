@@ -38,14 +38,22 @@ jobs:
     steps:
       - name: 🤖 App token
         uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
-        id: app-token1
+        id: app-token
         with:
           client-id: ${{ vars.BOT1_APP_ID }}
           private-key: ${{ secrets.BOT1_APP_PRIVATE_KEY }}
       - name: 🚚 Codeout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
-          token: ${{ steps.app-token1.outputs.token }} # branch write override
+          token: ${{ steps.app-token.outputs.token }} # branch write override
+      - name: 🏷️ Set dev flags
+        env:
+          INPUTS_CONDA_ORG: ${{ inputs.conda_org }}
+        run: |
+          if [[ "${GITHUB_REF}" == "refs/heads/dev" ]]; then
+            echo "CONDA_DEV_CHANNEL=--channel ${INPUTS_CONDA_ORG}/label/dev" >> $GITHUB_ENV
+            echo "ANACONDA_LABEL=--channel dev" >> $GITHUB_ENV
+          fi
       - name: 👾 Miniforge setup
         uses: conda-incubator/setup-miniconda@8ee1f361103df19b6f8c8655fd3967a8ecb162d5 # v4.0.1
         with:
@@ -55,10 +63,8 @@ jobs:
           miniforge-version: 26.1.0-0 # need to use mamba < 2.6.0 - see conda/conda-lock#906
       - name: 🐍 Conda pkg build
         run: |
-          EXTRA_CHANNEL=""
-          [[ "${GITHUB_REF}" == "refs/heads/dev" ]] && EXTRA_CHANNEL="--channel ${INPUTS_CONDA_ORG}/label/dev"
           rattler-build build \
-            ${EXTRA_CHANNEL} \
+            ${CONDA_DEV_CHANNEL} \
             --channel ${INPUTS_CONDA_ORG} \
             --channel conda-forge \
             --recipe ${INPUTS_DIR_CONDA_RECIPE}/recipe.yaml \
@@ -69,22 +75,20 @@ jobs:
       - name: 🐍 Conda pkg upload
         run: |
           pkg_path=$(find ${RUNNER_TEMP}/out1 -type f -name "*.conda")
-          LABEL_ARG=""
-          [[ "${GITHUB_REF}" == "refs/heads/dev" ]] && LABEL_ARG="--channel dev"
           rattler-build upload anaconda \
             --owner ${INPUTS_CONDA_ORG} \
             --api-key ${{ secrets.ANACONDA_UPLOAD_TOKEN }} \
-            ${LABEL_ARG} \
+            ${ANACONDA_LABEL} \
             ${pkg_path}
         env:
           INPUTS_CONDA_ORG: ${{ inputs.conda_org }}
       - name: 🔒 Conda lock
         run: |
-          CHANNEL_ARGS="--channel ${INPUTS_CONDA_ORG} --channel conda-forge"
-          [[ "${GITHUB_REF}" == "refs/heads/dev" ]] && CHANNEL_ARGS="--channel ${INPUTS_CONDA_ORG}/label/dev ${CHANNEL_ARGS}"
           conda-lock lock \
             --file ${INPUTS_DIR_CONDA_ENV_YAML}/${INPUTS_PKG_NAME}.yaml \
-            ${CHANNEL_ARGS} \
+            ${CONDA_DEV_CHANNEL} \
+            --channel ${INPUTS_CONDA_ORG} \
+            --channel conda-forge \
             -p linux-64 \
             -p linux-aarch64
           conda-lock render -p linux-64 conda-lock.yml \
@@ -106,5 +110,5 @@ jobs:
           git config --local user.name "tidywf-ci-bot[bot]"
           git add .
           git commit -m "[bot] Updating conda-lock files (v${INPUTS_PKG_VERSION})"
-          git pull --rebase # to pull in umlise commit
+          git pull --rebase # to pull in bump commit
           git push
