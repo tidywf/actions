@@ -84,6 +84,7 @@ jobs:
         run: |
           git add DESCRIPTION README.md \
             ${INPUTS_DIR_CONDA_ENV_YAML}/${INPUTS_PKG_NAME}.yaml \
+            ${INPUTS_DIR_CONDA_ENV_YAML}/pkgdown.yaml \
             ${INPUTS_DIR_CONDA_RECIPE}/recipe.yaml
           if ! git diff --staged --quiet; then
             git commit -m "Bump version: ${OLD_VERSION} => ${INPUTS_PKG_VERSION}"
