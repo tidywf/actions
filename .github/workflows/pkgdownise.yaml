@@ -32,6 +32,8 @@ jobs:
         shell: bash -l {0}
     permissions:
       contents: write
+    env:
+      APP_ID: ${{ vars.BOT1_APP_ID }}
 
     steps:
       - name: 🤖 Generate app token
@@ -45,19 +47,12 @@ jobs:
         with:
           ref: v${{ inputs.pkg_version }}
           token: ${{ steps.app-token.outputs.token }} # branch write override
-      - name: ⚙️ DVC setup
-        if: inputs.dvc == true
-        uses: iterative/setup-dvc@4bdfd2b0f6f1ad7e08afadb03b1a895c352a5239 # v2.0.0
       - name: 🗄️ DVC pull
         if: inputs.dvc == true
-        env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          AWS_DEFAULT_REGION: auto
-          AWS_REGION: auto
-        run: |
-          dvc pull
-          ls -l inst/extdata/*
+        uses: tidywf/actions/dvc-pull@main
+        with:
+          aws_access_key_id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws_secret_access_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
       - name: 👾 Miniforge setup
         uses: conda-incubator/setup-miniconda@8ee1f361103df19b6f8c8655fd3967a8ecb162d5 # v4.0.1
         with:
@@ -69,9 +64,6 @@ jobs:
         if: inputs.install_from_source == true
         run: R CMD INSTALL --no-test-load .
       - name: 🌐 Website publish
-        env:
-          APP_ID: ${{ vars.BOT1_APP_ID }}
-          INPUTS_PKG_NAME: ${{ inputs.pkg_name }}
         run: |
           git config --local user.email "${APP_ID}+tidywf-ci-bot[bot]@users.noreply.github.com"
           git config --local user.name "tidywf-ci-bot[bot]"

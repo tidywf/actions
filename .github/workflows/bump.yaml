@@ -30,6 +30,12 @@ jobs:
         shell: bash -l {0}
     permissions:
       contents: write
+    env:
+      APP_ID: ${{ vars.BOT1_APP_ID }}
+      INPUTS_PKG_VERSION: ${{ inputs.pkg_version }}
+      INPUTS_PKG_NAME: ${{ inputs.pkg_name }}
+      INPUTS_DIR_CONDA_ENV_YAML: ${{ inputs.dir_conda_env_yaml }}
+      INPUTS_DIR_CONDA_RECIPE: ${{ inputs.dir_conda_recipe }}
     steps:
       - name: 🤖 App token
         uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
@@ -48,23 +54,13 @@ jobs:
           environment-file: ${{ inputs.dir_conda_env_yaml }}/bump.yaml
           activate-environment: bump_env
           miniforge-version: 26.1.0-0 # need to use mamba < 2.6.0 - see conda/conda-lock#906
-      - name: ⚙️ DVC setup
-        if: inputs.dvc == true
-        uses: iterative/setup-dvc@4bdfd2b0f6f1ad7e08afadb03b1a895c352a5239 # v2.0.0
       - name: 🗄️ DVC pull
         if: inputs.dvc == true
-        env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          AWS_DEFAULT_REGION: auto
-          AWS_REGION: auto
-        run: |
-          dvc pull
-          ls -l inst/extdata/*
+        uses: tidywf/actions/dvc-pull@main
+        with:
+          aws_access_key_id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws_secret_access_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
       - name: 🔖 Bump version
-        env:
-          APP_ID: ${{ vars.BOT1_APP_ID }}
-          INPUTS_PKG_VERSION: ${{ inputs.pkg_version }}
         run: |
           git config --local user.email "${APP_ID}+tidywf-ci-bot[bot]@users.noreply.github.com"
           git config --local user.name "tidywf-ci-bot[bot]"
@@ -76,11 +72,6 @@ jobs:
       - name: 📖 Render README
         run: quarto render README.qmd
       - name: 💾 Commit and push
-        env:
-          INPUTS_PKG_VERSION: ${{ inputs.pkg_version }}
-          INPUTS_PKG_NAME: ${{ inputs.pkg_name }}
-          INPUTS_DIR_CONDA_ENV_YAML: ${{ inputs.dir_conda_env_yaml }}
-          INPUTS_DIR_CONDA_RECIPE: ${{ inputs.dir_conda_recipe }}
         run: |
           git add DESCRIPTION README.md \
             ${INPUTS_DIR_CONDA_ENV_YAML}/${INPUTS_PKG_NAME}.yaml \

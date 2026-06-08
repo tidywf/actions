@@ -34,6 +34,14 @@ jobs:
         shell: bash -l {0}
     permissions:
       contents: write
+    env:
+      INPUTS_CONDA_ORG: ${{ inputs.conda_org }}
+      INPUTS_DIR_CONDA_RECIPE: ${{ inputs.dir_conda_recipe }}
+      INPUTS_PKG_NAME: ${{ inputs.pkg_name }}
+      INPUTS_DIR_CONDA_ENV_YAML: ${{ inputs.dir_conda_env_yaml }}
+      INPUTS_DIR_CONDA_ENV_LOCK: ${{ inputs.dir_conda_env_lock }}
+      INPUTS_PKG_VERSION: ${{ inputs.pkg_version }}
+      APP_ID: ${{ vars.BOT1_APP_ID }}
 
     steps:
       - name: 🤖 App token
@@ -47,8 +55,6 @@ jobs:
         with:
           token: ${{ steps.app-token.outputs.token }} # branch write override
       - name: 🏷️ Set dev flags
-        env:
-          INPUTS_CONDA_ORG: ${{ inputs.conda_org }}
         run: |
           if [[ "${GITHUB_REF}" == "refs/heads/dev" ]]; then
             echo "CONDA_DEV_CHANNEL=--channel ${INPUTS_CONDA_ORG}/label/dev" >> $GITHUB_ENV
@@ -69,9 +75,6 @@ jobs:
             --channel conda-forge \
             --recipe ${INPUTS_DIR_CONDA_RECIPE}/recipe.yaml \
             --output-dir ${RUNNER_TEMP}/out1
-        env:
-          INPUTS_CONDA_ORG: ${{ inputs.conda_org }}
-          INPUTS_DIR_CONDA_RECIPE: ${{ inputs.dir_conda_recipe }}
       - name: 🐍 Conda pkg upload
         run: |
           pkg_path=$(find ${RUNNER_TEMP}/out1 -type f -name "*.conda")
@@ -80,8 +83,6 @@ jobs:
             --api-key ${{ secrets.ANACONDA_UPLOAD_TOKEN }} \
             ${ANACONDA_LABEL} \
             ${pkg_path}
-        env:
-          INPUTS_CONDA_ORG: ${{ inputs.conda_org }}
       - name: 🔒 Conda lock
         run: |
           conda-lock lock \
@@ -96,16 +97,7 @@ jobs:
               && mv conda-${plat}.lock ${INPUTS_DIR_CONDA_ENV_LOCK}/
           done
           rm conda-lock.yml
-        env:
-          INPUTS_CONDA_ORG: ${{ inputs.conda_org }}
-          INPUTS_DIR_CONDA_ENV_YAML: ${{ inputs.dir_conda_env_yaml }}
-          INPUTS_PKG_NAME: ${{ inputs.pkg_name }}
-          INPUTS_DIR_CONDA_ENV_LOCK: ${{ inputs.dir_conda_env_lock }}
       - name: 💾 Commit lockfiles
-        env:
-          APP_ID: ${{ vars.BOT1_APP_ID }}
-          INPUTS_PKG_VERSION: ${{ inputs.pkg_version }}
-          INPUTS_DIR_CONDA_ENV_LOCK: ${{ inputs.dir_conda_env_lock }}
         run: |
           git config --local user.email "${APP_ID}+tidywf-ci-bot[bot]@users.noreply.github.com"
           git config --local user.name "tidywf-ci-bot[bot]"
