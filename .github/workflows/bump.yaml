@@ -79,6 +79,6 @@ jobs:
             ${INPUTS_DIR_CONDA_RECIPE}/recipe.yaml
           if ! git diff --staged --quiet; then
             git commit -m "Bump version: ${OLD_VERSION} => ${INPUTS_PKG_VERSION}"
+            git pull --rebase
+            git push
           fi
-          git pull --rebase
-          git push
