@@ -12,14 +12,17 @@ on:
         required: true
         type: string
       dir_conda_env_yaml:
+        description: 'Path to conda env yaml directory'
         required: false
         type: string
         default: deploy/conda/env/yaml
       dvc:
+        description: 'Pull DVC-tracked test data from S3 before building docs'
         required: false
         type: boolean
         default: false
       install_from_source:
+        description: 'Run R CMD INSTALL before building docs (needed if pkg is not on conda)'
         required: false
         type: boolean
         default: false
@@ -36,7 +39,7 @@ jobs:
       APP_ID: ${{ vars.BOT1_APP_ID }}
 
     steps:
-      - name: 🤖 Generate app token
+      - name: 🤖 App token
         uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
         id: app-token
         with:
@@ -47,12 +50,6 @@ jobs:
         with:
           ref: v${{ inputs.pkg_version }}
           token: ${{ steps.app-token.outputs.token }} # branch write override
-      - name: 🗄️ DVC pull
-        if: inputs.dvc == true
-        uses: tidywf/actions/dvc-pull@main
-        with:
-          aws_access_key_id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws_secret_access_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
       - name: 👾 Miniforge setup
         uses: conda-incubator/setup-miniconda@8ee1f361103df19b6f8c8655fd3967a8ecb162d5 # v4.0.1
         with:
@@ -60,6 +57,12 @@ jobs:
           environment-file: ${{ inputs.dir_conda_env_yaml }}/pkgdown.yaml
           activate-environment: pkgdown_env
           miniforge-version: 26.1.0-0 # need to use mamba < 2.6.0 - see conda/conda-lock#906
+      - name: 🗄️ DVC pull
+        if: inputs.dvc == true
+        uses: tidywf/actions/dvc-pull@main
+        with:
+          aws_access_key_id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws_secret_access_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
       - name: 📦 Install from source
         if: inputs.install_from_source == true
         run: R CMD INSTALL --no-test-load .

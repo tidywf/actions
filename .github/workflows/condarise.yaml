@@ -104,6 +104,6 @@ jobs:
           git add ${INPUTS_DIR_CONDA_ENV_LOCK}/
           if ! git diff --staged --quiet; then
             git commit -m "[bot] Updating conda-lock files (v${INPUTS_PKG_VERSION})"
+            git pull --rebase
+            git push
           fi
-          git pull --rebase # to pull in bump commit
-          git push
