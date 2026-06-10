@@ -11,7 +11,7 @@ runs:
   using: composite
   steps:
     - name: ⚙️ DVC setup
-      uses: iterative/setup-dvc@4bdfd2b0f6f1ad7e08afadb03b1a895c352a5239 # v2.0.0
+      uses: iterative/setup-dvc@6c05772f52d19792ed73aedb6c2bf65ec92adebb # v3.0.0
     - name: 🗄️ DVC pull
       shell: bash
       env:
