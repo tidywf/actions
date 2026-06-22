@@ -57,9 +57,6 @@ jobs:
       - name: 🗄️ DVC pull
         if: inputs.dvc == true
         uses: tidywf/actions/dvc-pull@main
-        with:
-          aws_access_key_id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws_secret_access_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
       - name: 🔖 Bump version
         run: |
           git config --local user.email "${APP_ID}+tidywf-ci-bot[bot]@users.noreply.github.com"

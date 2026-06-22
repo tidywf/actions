@@ -17,7 +17,7 @@ on:
         type: string
         default: deploy/conda/env/yaml
       dvc:
-        description: 'Pull DVC-tracked test data from S3 before building docs'
+        description: 'Pull DVC-tracked test data before building docs'
         required: false
         type: boolean
         default: false
@@ -60,9 +60,6 @@ jobs:
       - name: 🗄️ DVC pull
         if: inputs.dvc == true
         uses: tidywf/actions/dvc-pull@main
-        with:
-          aws_access_key_id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws_secret_access_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
       - name: 📦 Install from source
         if: inputs.install_from_source == true
         run: R CMD INSTALL --no-test-load .
