@@ -15,6 +15,7 @@ This repo contains only reusable GitHub Actions workflows (`workflow_call`) shar
 | `tag.yaml` | Tag Release | 3rd — creates a `vX.Y.Z` git tag pointing at latest commit |
 | `dockerise.yaml` | Docker Deploy | 4th — builds multi-arch image (linux/amd64, linux/arm64), pushes to ghcr.io |
 | `pkgdownise.yaml` | pkgdown Deploy | 5th — deploys R package docs site to `gh-pages` branch |
+| `version.yaml` | Get Version | helper — reads `pkg_version` from `DESCRIPTION`, exposes as output |
 
 ## Key conventions
 
@@ -29,7 +30,7 @@ The App credentials come from `vars.BOT1_APP_ID` and `secrets.BOT1_APP_PRIVATE_K
 
 **Miniforge version lock** — all Miniforge setups pin `miniforge-version: 26.1.0-0` to stay below mamba 2.6.0 due to [conda/conda-lock#906](https://github.com/conda/conda-lock/issues/906). Do not bump this without verifying the upstream issue is resolved.
 
-**Branch-aware conda labels** — `condarise.yaml` detects `refs/heads/dev` and routes conda builds/uploads to the `dev` label on Anaconda; `main` goes to the default label.
+**Branch-aware conda labels** — `condarise.yaml` detects `refs/heads/dev` and sets `ANACONDA_LABEL=--label dev` for uploads; on `main` the variable is left unset, so `rattler-build upload anaconda` omits `--label` and Anaconda defaults to the `main` label.
 
 **Conda lock platforms** — lock files are generated for `linux-64` and `linux-aarch64` only (server targets). Docker images are also built for both (`linux/amd64`, `linux/arm64`).
 
