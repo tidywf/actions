@@ -63,8 +63,14 @@ jobs:
       - name: 📦 Install from source
         if: inputs.install_from_source == true
         run: R CMD INSTALL --no-test-load .
-      - name: 🌐 Website publish
-        run: |
-          git config --local user.email "${APP_ID}+tidywf-ci-bot[bot]@users.noreply.github.com"
-          git config --local user.name "tidywf-ci-bot[bot]"
-          Rscript -e "pkgdown::deploy_to_branch(pkg = '.', new_process = FALSE)"
+      - name: 🌐 Website build
+        run: Rscript -e "pkgdown::build_site_github_pages(pkg = '.', new_process = FALSE, install = FALSE)"
+      - name: 🚀 Website publish
+        uses: JamesIves/github-pages-deploy-action@d92aa235d04922e8f08b40ce78cc5442fcfbfa2f # v4.8.0
+        with:
+          token: ${{ steps.app-token.outputs.token }}
+          branch: gh-pages
+          folder: docs
+          clean: false
+          git-config-name: tidywf-ci-bot[bot]
+          git-config-email: ${{ env.APP_ID }}+tidywf-ci-bot[bot]@users.noreply.github.com
