@@ -56,7 +56,7 @@ jobs:
           miniforge-version: 26.1.0-0 # need to use mamba < 2.6.0 - see conda/conda-lock#906
       - name: 🗄️ DVC pull
         if: inputs.dvc == true
-        uses: tidywf/actions/dvc-pull@main
+        uses: $/dvc-pull
       - name: 🔖 Bump version
         run: |
           git config --local user.email "${APP_ID}+tidywf-ci-bot[bot]@users.noreply.github.com"
