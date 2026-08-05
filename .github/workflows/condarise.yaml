@@ -41,28 +41,16 @@ jobs:
       INPUTS_DIR_CONDA_ENV_YAML: ${{ inputs.dir_conda_env_yaml }}
       INPUTS_DIR_CONDA_ENV_LOCK: ${{ inputs.dir_conda_env_lock }}
       INPUTS_PKG_VERSION: ${{ inputs.pkg_version }}
-      APP_ID: ${{ vars.BOT1_APP_ID }}
 
     steps:
-      - name: 🤖 App token
-        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
-        id: app-token
-        with:
-          client-id: ${{ vars.BOT1_APP_ID }}
-          private-key: ${{ secrets.BOT1_APP_PRIVATE_KEY }}
       - name: 🚚 Codeout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          token: ${{ steps.app-token.outputs.token }} # branch write override
       - name: 🏷️ Set dev flags
         run: |
           # 4-component version (x.y.z.9XXX) => dev release; 3-component => main
           if [[ "${INPUTS_PKG_VERSION}" == *.*.*.* ]]; then
             echo "CONDA_DEV_CHANNEL=--channel ${INPUTS_CONDA_ORG}/label/dev" >> $GITHUB_ENV
             echo "ANACONDA_LABEL=--channel dev" >> $GITHUB_ENV
-            echo "TARGET_BRANCH=dev" >> $GITHUB_ENV
-          else
-            echo "TARGET_BRANCH=main" >> $GITHUB_ENV
           fi
       - name: 👾 Miniforge setup
         uses: conda-incubator/setup-miniconda@8ee1f361103df19b6f8c8655fd3967a8ecb162d5 # v4.0.1
@@ -101,22 +89,25 @@ jobs:
               && mv conda-${plat}.lock ${INPUTS_DIR_CONDA_ENV_LOCK}/
           done
           rm conda-lock.yml
-      - name: ⬆️ Upload lockfiles
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: conda-lockfiles
-          path: ${{ inputs.dir_conda_env_lock }}/
-      - name: 💾 Commit lockfiles
+      - name: 📦 Publish lockfiles to release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          git config --local user.email "${APP_ID}+tidywf-ci-bot[bot]@users.noreply.github.com"
-          git config --local user.name "tidywf-ci-bot[bot]"
-          # workflow is tag-triggered => detached HEAD at the tag commit, which
-          # equals the branch tip. Attach HEAD to the branch (keeps the freshly
-          # generated lockfiles in the worktree) so we can commit + push them.
-          git checkout -B "${TARGET_BRANCH}"
-          git add ${INPUTS_DIR_CONDA_ENV_LOCK}/
-          if ! git diff --staged --quiet; then
-            git commit -m "[bot] Updating conda-lock files (v${INPUTS_PKG_VERSION})"
-            git pull --rebase
-            git push
+          # Attach the freshly generated lockfiles to the vX.Y.Z release as
+          # immutable, release-scoped assets. bump.yaml cut a bare tag; create
+          # the GitHub Release here if it does not exist yet. dockerise pulls
+          # these same assets for its build (tag's git tree is stale).
+          assets=()
+          for plat in linux-64 linux-aarch64; do
+            dst="${RUNNER_TEMP}/${INPUTS_PKG_NAME}-v${INPUTS_PKG_VERSION}-conda-${plat}.lock"
+            cp "${INPUTS_DIR_CONDA_ENV_LOCK}/conda-${plat}.lock" "${dst}"
+            assets+=("${dst}")
+          done
+          if gh release view "v${INPUTS_PKG_VERSION}" >/dev/null 2>&1; then
+            gh release upload "v${INPUTS_PKG_VERSION}" "${assets[@]}" --clobber
+          else
+            gh release create "v${INPUTS_PKG_VERSION}" \
+              --title "v${INPUTS_PKG_VERSION}" \
+              --notes "Automated release for v${INPUTS_PKG_VERSION}." \
+              "${assets[@]}"
           fi
