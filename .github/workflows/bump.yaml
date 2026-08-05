@@ -59,6 +59,7 @@ jobs:
         uses: $/dvc-pull
       - name: 🔖 Bump version
         run: |
+          set -euo pipefail
           git config --local user.email "${APP_ID}+tidywf-ci-bot[bot]@users.noreply.github.com"
           git config --local user.name "tidywf-ci-bot[bot]"
           OLD_VERSION="$(awk -F': *' '$1=="Version"{print $2; found=1} END{exit !found}' DESCRIPTION)"
@@ -70,6 +71,7 @@ jobs:
         run: quarto render README.qmd
       - name: 💾 Commit and push
         run: |
+          set -euo pipefail
           git add DESCRIPTION README.md .bumpversion.toml \
             ${INPUTS_DIR_CONDA_ENV_YAML}/${INPUTS_PKG_NAME}.yaml \
             ${INPUTS_DIR_CONDA_ENV_YAML}/pkgdown.yaml \
@@ -79,3 +81,13 @@ jobs:
             git pull --rebase
             git push
           fi
+      - name: 🔖 Create and push tag
+        run: |
+          set -euo pipefail
+          tag="v${INPUTS_PKG_VERSION}"
+          if git ls-remote --exit-code --tags origin "refs/tags/${tag}" >/dev/null 2>&1; then
+            echo "Tag ${tag} already exists on origin — skipping"
+            exit 0
+          fi
+          git tag "${tag}"
+          git push origin "${tag}"
