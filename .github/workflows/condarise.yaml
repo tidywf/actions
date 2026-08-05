@@ -45,6 +45,9 @@ jobs:
           persist-credentials: false # no git ops; gh uses GH_TOKEN env
       - name: 🏷️ Set dev flags
         run: |
+          set -euo pipefail
+          echo "CONDA_DEV_CHANNEL=" >> $GITHUB_ENV
+          echo "ANACONDA_LABEL=" >> $GITHUB_ENV
           # 4-part version (x.y.z.9XXX) => dev; 3-part (x.y.z) => main
           if [[ "${INPUTS_PKG_VERSION}" == *.*.*.* ]]; then
             echo "CONDA_DEV_CHANNEL=--channel ${INPUTS_CONDA_ORG}/label/dev" >> $GITHUB_ENV

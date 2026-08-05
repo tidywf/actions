@@ -84,5 +84,10 @@ jobs:
       - name: 🔖 Create and push tag
         run: |
           set -euo pipefail
-          git tag "v${INPUTS_PKG_VERSION}"
-          git push origin "v${INPUTS_PKG_VERSION}"
+          tag="v${INPUTS_PKG_VERSION}"
+          if git ls-remote --exit-code --tags origin "refs/tags/${tag}" >/dev/null 2>&1; then
+            echo "Tag ${tag} already exists on origin — skipping"
+            exit 0
+          fi
+          git tag "${tag}"
+          git push origin "${tag}"

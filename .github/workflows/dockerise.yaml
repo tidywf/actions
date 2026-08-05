@@ -34,7 +34,7 @@ jobs:
           for plat in linux-64 linux-aarch64; do
             gh release download "v${{ inputs.pkg_version }}" \
               --repo "${{ github.repository }}" \
-              --pattern "*-conda-${plat}.lock" \
+              --pattern "*-v${{ inputs.pkg_version }}-conda-${plat}.lock" \
               --output "conda-${plat}.lock" --clobber
           done
       - name: 🏰 QEMU setup
