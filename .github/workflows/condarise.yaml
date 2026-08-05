@@ -56,9 +56,13 @@ jobs:
           token: ${{ steps.app-token.outputs.token }} # branch write override
       - name: 🏷️ Set dev flags
         run: |
-          if [[ "${GITHUB_REF}" == "refs/heads/dev" ]]; then
+          # 4-component version (x.y.z.9XXX) => dev release; 3-component => main
+          if [[ "${INPUTS_PKG_VERSION}" == *.*.*.* ]]; then
             echo "CONDA_DEV_CHANNEL=--channel ${INPUTS_CONDA_ORG}/label/dev" >> $GITHUB_ENV
             echo "ANACONDA_LABEL=--channel dev" >> $GITHUB_ENV
+            echo "TARGET_BRANCH=dev" >> $GITHUB_ENV
+          else
+            echo "TARGET_BRANCH=main" >> $GITHUB_ENV
           fi
       - name: 👾 Miniforge setup
         uses: conda-incubator/setup-miniconda@8ee1f361103df19b6f8c8655fd3967a8ecb162d5 # v4.0.1
@@ -101,6 +105,10 @@ jobs:
         run: |
           git config --local user.email "${APP_ID}+tidywf-ci-bot[bot]@users.noreply.github.com"
           git config --local user.name "tidywf-ci-bot[bot]"
+          # workflow is tag-triggered => detached HEAD at the tag commit, which
+          # equals the branch tip. Attach HEAD to the branch (keeps the freshly
+          # generated lockfiles in the worktree) so we can commit + push them.
+          git checkout -B "${TARGET_BRANCH}"
           git add ${INPUTS_DIR_CONDA_ENV_LOCK}/
           if ! git diff --staged --quiet; then
             git commit -m "[bot] Updating conda-lock files (v${INPUTS_PKG_VERSION})"
