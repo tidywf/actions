@@ -101,6 +101,11 @@ jobs:
               && mv conda-${plat}.lock ${INPUTS_DIR_CONDA_ENV_LOCK}/
           done
           rm conda-lock.yml
+      - name: ⬆️ Upload lockfiles
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: conda-lockfiles
+          path: ${{ inputs.dir_conda_env_lock }}/
       - name: 💾 Commit lockfiles
         run: |
           git config --local user.email "${APP_ID}+tidywf-ci-bot[bot]@users.noreply.github.com"
