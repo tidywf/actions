@@ -59,6 +59,7 @@ jobs:
         uses: $/dvc-pull
       - name: 🔖 Bump version
         run: |
+          set -euo pipefail
           git config --local user.email "${APP_ID}+tidywf-ci-bot[bot]@users.noreply.github.com"
           git config --local user.name "tidywf-ci-bot[bot]"
           OLD_VERSION="$(awk -F': *' '$1=="Version"{print $2; found=1} END{exit !found}' DESCRIPTION)"
@@ -70,6 +71,7 @@ jobs:
         run: quarto render README.qmd
       - name: 💾 Commit and push
         run: |
+          set -euo pipefail
           git add DESCRIPTION README.md .bumpversion.toml \
             ${INPUTS_DIR_CONDA_ENV_YAML}/${INPUTS_PKG_NAME}.yaml \
             ${INPUTS_DIR_CONDA_ENV_YAML}/pkgdown.yaml \
@@ -81,5 +83,6 @@ jobs:
           fi
       - name: 🔖 Create and push tag
         run: |
+          set -euo pipefail
           git tag "v${INPUTS_PKG_VERSION}"
           git push origin "v${INPUTS_PKG_VERSION}"
