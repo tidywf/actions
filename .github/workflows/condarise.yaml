@@ -103,6 +103,11 @@ jobs:
           # bump.yaml cut a bare tag; create the GitHub Release
           # here if it doesn't exist. dockerise uses these assets.
           tag="v${INPUTS_PKG_VERSION}"
+          # 4-part version (x.y.z.9XXX) => dev => flag release as prerelease.
+          prerelease=""
+          if [[ "${INPUTS_PKG_VERSION}" == *.*.*.* ]]; then
+            prerelease="--prerelease"
+          fi
           assets=()
           for plat in linux-64 linux-aarch64; do
             dst="${RUNNER_TEMP}/${INPUTS_PKG_NAME}-${tag}-conda-${plat}.lock"
@@ -114,6 +119,7 @@ jobs:
           else
             gh release create "${tag}" \
               --verify-tag \
+              ${prerelease} \
               --title "${tag}" \
               --notes "Automated release for ${tag}." \
               "${assets[@]}"
