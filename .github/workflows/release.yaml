@@ -1,0 +1,44 @@
+name: Release
+
+# Triggered when a semver tag `vX.Y.Z` is pushed to this repo. It:
+#   1. Force-moves the major-version alias tag `vX` to point at `vX.Y.Z`,
+#      so callers pinned to `@vX` automatically receive patch/minor updates.
+#   2. Creates (or refreshes) a GitHub Release for `vX.Y.Z` with generated notes.
+# Callers can pin either the exact `@vX.Y.Z` (immutable/reproducible, bumped by
+# Dependabot) or the moving `@vX` alias (convenience).
+
+on:
+  push:
+    tags:
+      - "v[0-9]+.[0-9]+.[0-9]+"
+
+permissions:
+  contents: write # push alias tag + create release
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 🚚 Codeout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Move major-version alias tag
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          MAJOR="${TAG%%.*}" # v1.2.3 -> v1
+          echo "Moving alias '$MAJOR' -> '$TAG'"
+          git tag -f "$MAJOR" "$TAG"
+          git push -f origin "refs/tags/$MAJOR"
+
+      - name: Create or refresh GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release edit "$TAG" --verify-tag --title "$TAG"
+          else
+            gh release create "$TAG" --verify-tag --title "$TAG" --generate-notes
+          fi
