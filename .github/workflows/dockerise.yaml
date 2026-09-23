@@ -32,16 +32,58 @@ jobs:
       # pull the fresh release assets condarise published into the repo root
       # (the build context) as the bare conda-<plat>.lock names the Dockerfile
       # COPYs.
+      #
+      # This deliberately avoids `gh release download`. That reads the
+      # `assets` array embedded in the release object, which GitHub serves
+      # from a cache that intermittently returns an empty list, so the step
+      # failed with "no assets to download" while the assets were in fact
+      # present. The per-release assets endpoint is consistent, so resolve the
+      # release id (also consistent) and list the assets from there.
       - name: ⬇️ Fetch lockfiles
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: v${{ inputs.pkg_version }}
+          REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
-          for plat in linux-64 linux-aarch64; do
-            gh release download "v${{ inputs.pkg_version }}" \
-              --repo "${{ github.repository }}" \
-              --pattern "*-v${{ inputs.pkg_version }}-conda-${plat}.lock" \
-              --output "conda-${plat}.lock" --clobber
+          # Retry as well: the assets endpoint has been consistent in testing,
+          # but it is the same replicated store, so do not bet a release on it.
+          attempts=5
+          for attempt in $(seq 1 "${attempts}"); do
+            ids=()
+            missing=""
+            rel_id=$(gh api "repos/${REPO}/releases/tags/${TAG}" --jq '.id' 2>/dev/null || true)
+            if [[ -n "${rel_id}" ]]; then
+              assets=$(gh api "repos/${REPO}/releases/${rel_id}/assets?per_page=100" 2>/dev/null || echo '[]')
+              for plat in linux-64 linux-aarch64; do
+                suffix="-${TAG}-conda-${plat}.lock"
+                asset_id=$(jq -r --arg s "${suffix}" \
+                  'map(select(.name | endswith($s))) | .[0].id // empty' <<< "${assets}")
+                if [[ -z "${asset_id}" ]]; then
+                  missing="${missing} ${suffix}"
+                else
+                  ids+=("${plat}:${asset_id}")
+                fi
+              done
+            else
+              missing=" (release ${TAG} not resolvable)"
+            fi
+            [[ -z "${missing}" ]] && break
+            if [[ "${attempt}" -eq "${attempts}" ]]; then
+              echo "Release ${TAG} still missing assets after ${attempts} attempts:${missing}" >&2
+              echo "Assets currently visible:" >&2
+              jq -r '.[].name' <<< "${assets:-[]}" >&2
+              exit 1
+            fi
+            echo "Attempt ${attempt}: assets not visible yet (${missing# }); retrying in $((attempt * 5))s" >&2
+            sleep $((attempt * 5))
+          done
+          for entry in "${ids[@]}"; do
+            plat="${entry%%:*}"
+            asset_id="${entry##*:}"
+            gh api "repos/${REPO}/releases/assets/${asset_id}" \
+              -H "Accept: application/octet-stream" > "conda-${plat}.lock"
+            echo "conda-${plat}.lock: $(wc -c < "conda-${plat}.lock") bytes"
           done
       - name: 🏰 QEMU setup
         uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
