@@ -6,6 +6,12 @@ on:
       pkg_version:
         required: true
         type: string
+      build_args:
+        # Optional newline-separated KEY=VALUE pairs forwarded to `docker
+        # build --build-arg`. Used in docker/build-push-action
+        required: false
+        type: string
+        default: ""
 
 jobs:
   docker_deploy:
@@ -55,6 +61,7 @@ jobs:
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           tags: ghcr.io/${{ github.repository }}:${{ inputs.pkg_version }}
+          build-args: ${{ inputs.build_args }}
           context: .
           push: true
           platforms: linux/amd64,linux/arm64
