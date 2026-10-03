@@ -2,7 +2,8 @@ Reusable GitHub Actions for tidywf
 ==================================
 
 Reusable `workflow_call` workflows shared across the tidywf R packages. There is
-no local build, test, or lint step; all work is done in CI.
+no local build or test step; all work is done in CI. Linting runs via
+`pre-commit run --all-files` (zizmor, YAML and Markdown checks).
 
 ## Inventory
 
@@ -79,14 +80,38 @@ in the branch they were built from:
 
 | Input         | Type   | Required | Default | Notes                                                              |
 |---------------|--------|----------|---------|--------------------------------------------------------------------|
-| `pkg_version` | string | yes      | —       | Tag to check out; also the image tag                                |
+| `pkg_version` | string | yes      | —       | Tag to check out; also the image tag (`ghcr.io/<owner>/<repo>`, lowercased) |
 | `build_args`  | string | no       | `""`    | Newline-separated `KEY=VALUE` pairs passed to `docker build --build-arg` |
+| `labels`      | string | no       | `""`    | Newline-separated `KEY=VALUE` OCI labels; also applied as annotations |
+
+Image labels and annotations (index + manifest) come from
+`docker/metadata-action`, in increasing precedence:
+
+1. Defaults derived from the caller's GitHub repo: `title`, `description`,
+   `url`, `source`, `licenses`, `created`.
+2. `version` (= `pkg_version`) and `revision` (= the tagged commit).
+3. The `labels` input.
+
+These override same-key `LABEL`s in the `Dockerfile`. Note GitHub reports R
+packages' `MIT + file LICENSE` as `NOASSERTION`, and uses the repo's About text
+as `description`, so pass those (plus anything else, e.g. `authors`,
+`documentation`) via `labels`:
+
+```yaml
+with:
+  pkg_version: ${{ needs.prep.outputs.pkg_version }}
+  labels: |
+    org.opencontainers.image.authors=peterdiakumis@gmail.com
+    org.opencontainers.image.description=WiGiTS workflow tidying
+    org.opencontainers.image.documentation=https://tidywf.github.io/tidywigits
+    org.opencontainers.image.licenses=MIT
+```
 
 ### `pkgdownise.yaml`
 
 | Input                 | Type    | Required | Default                 | Notes                                             |
 |-----------------------|---------|----------|-------------------------|---------------------------------------------------|
-| `pkg_name`            | string  | yes      | —                       |                                                   |
+| `pkg_name`            | string  | yes      | —                       | Currently unused by the workflow body             |
 | `pkg_version`         | string  | yes      | —                       | Tag to check out                                  |
 | `dir_conda_env_yaml`  | string  | no       | `deploy/conda/env/yaml` | Must contain `pkgdown.yaml`                       |
 | `dvc`                 | boolean | no       | `false`                 | Pull DVC-tracked test data before building docs   |
@@ -94,7 +119,9 @@ in the branch they were built from:
 
 ## Secrets and variables
 
-Callers should pass `secrets: inherit` (or forward these explicitly):
+Callers should pass `secrets: inherit` (or forward these explicitly). The
+secrets are declared `required` under `workflow_call`, so a caller that doesn't
+provide them fails at workflow start rather than mid-run:
 
 | Name                        | Kind   | Used by               | Purpose                                     |
 |-----------------------------|--------|-----------------------|---------------------------------------------|
@@ -150,7 +177,8 @@ after each release; it is *not* a semver range resolved by GitHub.
 ## Cutting a release of *this* repo
 
 Releases are driven by pushing a semver tag. Use the Makefile helper (validates
-semver, clean tree, `main` branch, and that the tag is new):
+semver, clean tree, `main` branch with `HEAD` equal to `origin/main`, and that
+the tag is new locally and on origin):
 
 ```sh
 make release V=1.2.3
@@ -166,7 +194,8 @@ git push origin v1.2.3
 Either way, the `vX.Y.Z` tag push triggers [`release.yaml`](.github/workflows/release.yaml),
 which:
 
-1. moves the `vX` alias tag (e.g. `v1`) to the new `vX.Y.Z`, and
+1. moves the `vX` alias tag (e.g. `v1`) to the new `vX.Y.Z`, unless a newer
+   `vX.*` tag already exists (so a backport never moves the alias backwards), and
 2. creates/refreshes the GitHub Release with generated notes.
 
 `release.yaml` only matches three-part tags (`v[0-9]+.[0-9]+.[0-9]+`), so this

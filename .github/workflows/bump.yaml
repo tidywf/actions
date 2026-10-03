@@ -21,15 +21,22 @@ on:
         required: false
         type: boolean
         default: false
+    secrets:
+      BOT1_APP_PRIVATE_KEY:
+        required: true
 
 jobs:
   bump:
     runs-on: ubuntu-latest
+    # Serialise bumps per repo so two runs can't race on the commit/tag.
+    concurrency:
+      group: bump-${{ github.repository }}
+      cancel-in-progress: false
     defaults:
       run:
         shell: bash -l {0}
     permissions:
-      contents: write
+      contents: read # pushes use the App token, not GITHUB_TOKEN
     env:
       APP_ID: ${{ vars.BOT1_APP_ID }}
       INPUTS_PKG_VERSION: ${{ inputs.pkg_version }}
@@ -37,20 +44,29 @@ jobs:
       INPUTS_DIR_CONDA_ENV_YAML: ${{ inputs.dir_conda_env_yaml }}
       INPUTS_DIR_CONDA_RECIPE: ${{ inputs.dir_conda_recipe }}
     steps:
+      - name: ✅ Validate version
+        run: |
+          set -euo pipefail
+          # x.y.z or x.y.z.w, no leading 'v' (the tag adds it)
+          if [[ ! "${INPUTS_PKG_VERSION}" =~ ^[0-9]+\.[0-9]+\.[0-9]+(\.[0-9]+)?$ ]]; then
+            echo "pkg_version must be x.y.z or x.y.z.w without a leading 'v', got '${INPUTS_PKG_VERSION}'" >&2
+            exit 1
+          fi
       - name: 🤖 App token
         uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
         id: app-token
         with:
           client-id: ${{ vars.BOT1_APP_ID }}
           private-key: ${{ secrets.BOT1_APP_PRIVATE_KEY }}
-      - name: 🚚 Codeout
+          permission-contents: write
+      - name: 🚚 Codeout # zizmor: ignore[artipacked] -- later steps git push
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           token: ${{ steps.app-token.outputs.token }}
       - name: 👾 Miniforge setup
         uses: conda-incubator/setup-miniconda@be893c923ea9cf1cf7cd510fbdde27c7e18cbdcb # v4.1.0
         with:
-          auto-update-conda: true
+          auto-update-conda: false # keep the pinned Miniforge base
           environment-file: ${{ inputs.dir_conda_env_yaml }}/bump.yaml
           activate-environment: bump_env
           miniforge-version: 26.1.0-0 # need to use mamba < 2.6.0 - see conda/conda-lock#906
@@ -64,7 +80,7 @@ jobs:
           git config --local user.name "tidywf-ci-bot[bot]"
           OLD_VERSION="$(awk -F': *' '$1=="Version"{print $2; found=1} END{exit !found}' DESCRIPTION)"
           echo "OLD_VERSION=${OLD_VERSION}" >> "$GITHUB_ENV"
-          bump-my-version bump --new-version ${INPUTS_PKG_VERSION} --no-commit
+          bump-my-version bump --new-version "${INPUTS_PKG_VERSION}" --no-commit
       - name: 📦 Install from source
         run: R CMD INSTALL --no-test-load .
       - name: 📖 Render README
@@ -83,8 +99,16 @@ jobs:
         run: |
           set -euo pipefail
           tag="v${INPUTS_PKG_VERSION}"
-          if git ls-remote --exit-code --tags origin "refs/tags/${tag}" >/dev/null 2>&1; then
-            echo "Tag ${tag} already exists on origin — skipping"
+          # Last line is the peeled commit for annotated tags, else the tag itself.
+          remote=$(git ls-remote --tags origin "refs/tags/${tag}" "refs/tags/${tag}^{}")
+          if [[ -n "${remote}" ]]; then
+            remote_sha=$(tail -1 <<< "${remote}" | cut -f1)
+            head_sha=$(git rev-parse HEAD)
+            if [[ "${remote_sha}" != "${head_sha}" ]]; then
+              echo "Tag ${tag} already exists on origin at ${remote_sha}, but HEAD is ${head_sha}" >&2
+              exit 1
+            fi
+            echo "Tag ${tag} already exists on origin at HEAD — skipping"
             exit 0
           fi
           git tag "${tag}"

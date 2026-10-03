@@ -1,7 +1,8 @@
 # CLAUDE.md
 
 Reusable `workflow_call` workflows for tidywf R packages, plus the `dvc-pull`
-composite action. No local build/test/lint — all work in CI.
+composite action. No local build/test — all work in CI. Lint with
+`pre-commit run --all-files` (zizmor, YAML, Markdown).
 
 See `README.md` for the workflow inventory, inputs, secrets, caller release
 pipeline, caller-side file layout, and release process. Guardrails specific to

@@ -26,15 +26,22 @@ on:
         required: false
         type: boolean
         default: false
+    secrets:
+      BOT1_APP_PRIVATE_KEY:
+        required: true
 
 jobs:
   pkgdown:
     runs-on: ubuntu-latest
+    # Serialise gh-pages deploys per repo.
+    concurrency:
+      group: pkgdown-${{ github.repository }}
+      cancel-in-progress: false
     defaults:
       run:
         shell: bash -l {0}
     permissions:
-      contents: write
+      contents: read # deploy uses the App token, not GITHUB_TOKEN
     env:
       APP_ID: ${{ vars.BOT1_APP_ID }}
 
@@ -45,15 +52,18 @@ jobs:
         with:
           client-id: ${{ vars.BOT1_APP_ID }}
           private-key: ${{ secrets.BOT1_APP_PRIVATE_KEY }}
+          permission-contents: write
       - name: 🚚 Codeout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: v${{ inputs.pkg_version }}
-          token: ${{ steps.app-token.outputs.token }} # branch write override
+          # Don't leave the App token in .git/config while vignettes run;
+          # the deploy action takes it explicitly via `token:`.
+          persist-credentials: false
       - name: 👾 Miniforge setup
         uses: conda-incubator/setup-miniconda@be893c923ea9cf1cf7cd510fbdde27c7e18cbdcb # v4.1.0
         with:
-          auto-update-conda: true
+          auto-update-conda: false # keep the pinned Miniforge base
           environment-file: ${{ inputs.dir_conda_env_yaml }}/pkgdown.yaml
           activate-environment: pkgdown_env
           miniforge-version: 26.1.0-0 # need to use mamba < 2.6.0 - see conda/conda-lock#906
@@ -71,6 +81,9 @@ jobs:
           token: ${{ steps.app-token.outputs.token }}
           branch: gh-pages
           folder: docs
+          # Not clean: pkgdown dev mode builds dev versions into docs/dev/ only,
+          # so cleaning on a dev deploy would delete the release site. Cost:
+          # pages removed upstream linger on gh-pages until cleaned by hand.
           clean: false
           git-config-name: tidywf-ci-bot[bot]
           git-config-email: ${{ env.APP_ID }}+tidywf-ci-bot[bot]@users.noreply.github.com
