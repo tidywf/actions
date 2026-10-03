@@ -22,7 +22,7 @@ jobs:
       - name: 🚚 Codeout # zizmor: ignore[artipacked] -- needs creds to push the alias tag
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          fetch-tags: true # to find the newest tag in the major series
+          fetch-tags: true # local copy of the pushed tag for `git tag -f`
       - name: Move major-version alias tag
         env:
           TAG: ${{ github.ref_name }}
@@ -30,15 +30,22 @@ jobs:
           set -euo pipefail
           MAJOR="${TAG%%.*}" # v1.2.3 -> v1
           # Only move the alias forward: a backport (e.g. v1.1.5 after v1.2.0)
-          # must not repoint v1 at an older release.
-          NEWEST="$(git tag -l "${MAJOR}.*" | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -1)"
+          # must not repoint v1 at an older release. Read tags from origin, not
+          # the checkout, so a release that landed since checkout is seen.
+          REMOTE_TAGS="$(git ls-remote --tags --refs origin)"
+          NEWEST="$(awk '{sub("refs/tags/", "", $2); print $2}' <<<"$REMOTE_TAGS" \
+            | grep -E "^${MAJOR}\.[0-9]+\.[0-9]+$" | sort -V | tail -1)"
           if [[ "$NEWEST" != "$TAG" ]]; then
             echo "Not moving '$MAJOR': '$TAG' is older than '$NEWEST'"
             exit 0
           fi
+          # Lease on the alias value just read: if a concurrent release moves
+          # it first, the push fails instead of moving it backwards. Re-run to
+          # re-evaluate. Empty lease value means "alias must not exist yet".
+          CURRENT="$(awk -v ref="refs/tags/$MAJOR" '$2 == ref {print $1}' <<<"$REMOTE_TAGS")"
           echo "Moving alias '$MAJOR' -> '$TAG'"
           git tag -f "$MAJOR" "$TAG"
-          git push -f origin "refs/tags/$MAJOR"
+          git push --force-with-lease="refs/tags/$MAJOR:$CURRENT" origin "refs/tags/$MAJOR"
 
       - name: Create or refresh GitHub Release
         env:
