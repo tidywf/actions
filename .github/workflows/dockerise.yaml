@@ -7,8 +7,15 @@ on:
         required: true
         type: string
       build_args:
-        # Optional newline-separated KEY=VALUE pairs forwarded to `docker
+        # newline-separated KEY=VALUE pairs forwarded to `docker
         # build --build-arg`. Used in docker/build-push-action
+        required: false
+        type: string
+        default: ""
+      labels:
+        # newline-separated KEY=VALUE OCI labels, applied as image
+        # labels and index/manifest annotations. Override the defaults that
+        # docker/metadata-action derives from the GitHub repo (see README).
         required: false
         type: string
         default: ""
@@ -17,12 +24,13 @@ jobs:
   docker_deploy:
     runs-on: ubuntu-latest
     permissions:
-      contents: read # gh release download
+      contents: read # release assets API
       packages: write
 
     steps:
       # Check out the release tag for exact provenance of the build context.
       - name: 🚚 Codeout
+        id: codeout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: v${{ inputs.pkg_version }}
@@ -52,9 +60,13 @@ jobs:
           for attempt in $(seq 1 "${attempts}"); do
             ids=()
             missing=""
-            rel_id=$(gh api "repos/${REPO}/releases/tags/${TAG}" --jq '.id' 2>/dev/null || true)
+            # On 4xx/5xx `gh api` still prints the JSON error body to stdout
+            # (even with --jq), so discard output on failure and sanity-check.
+            rel_id=$(gh api "repos/${REPO}/releases/tags/${TAG}" --jq '.id' 2>/dev/null) || rel_id=""
+            [[ "${rel_id}" =~ ^[0-9]+$ ]] || rel_id=""
             if [[ -n "${rel_id}" ]]; then
-              assets=$(gh api "repos/${REPO}/releases/${rel_id}/assets?per_page=100" 2>/dev/null || echo '[]')
+              assets=$(gh api "repos/${REPO}/releases/${rel_id}/assets?per_page=100" 2>/dev/null) || assets='[]'
+              jq -e 'type == "array"' >/dev/null 2>&1 <<< "${assets}" || assets='[]'
               for plat in linux-64 linux-aarch64; do
                 suffix="-${TAG}-conda-${plat}.lock"
                 asset_id=$(jq -r --arg s "${suffix}" \
@@ -99,11 +111,38 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+      # Lowercases the image name and generates OCI labels + annotations.
+      # Defaults come from the GitHub repo
+      # (title, description, url, source, licenses); version and revision are
+      # pinned to the tag here, then inputs.labels overrides any of them.
+      # Labels set here override same-key Dockerfile LABELs.
+      - name: 🏷️ Image metadata
+        id: meta
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
+        env:
+          # index-level annotations are what ghcr.io shows for multi-arch images
+          DOCKER_METADATA_ANNOTATIONS_LEVELS: manifest,index
+        with:
+          images: ghcr.io/${{ github.repository }}
+          flavor: latest=false
+          tags: type=raw,value=${{ inputs.pkg_version }}
+          labels: |
+            org.opencontainers.image.version=${{ inputs.pkg_version }}
+            org.opencontainers.image.revision=${{ steps.codeout.outputs.commit }}
+            ${{ inputs.labels }}
+          annotations: |
+            org.opencontainers.image.version=${{ inputs.pkg_version }}
+            org.opencontainers.image.revision=${{ steps.codeout.outputs.commit }}
+            ${{ inputs.labels }}
       - name: 🐳 Docker img build and push
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
-          tags: ghcr.io/${{ github.repository }}:${{ inputs.pkg_version }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          annotations: ${{ steps.meta.outputs.annotations }}
           build-args: ${{ inputs.build_args }}
           context: .
           push: true
           platforms: linux/amd64,linux/arm64
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

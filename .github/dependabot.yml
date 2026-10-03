@@ -1,9 +1,13 @@
 version: 2
 updates:
   - package-ecosystem: "github-actions"
-    directory: "/"
+    directories:
+      - "/"
+      - "/dvc-pull"
     schedule:
       interval: "weekly"
+    cooldown:
+      default-days: 7
     groups:
       all-actions:
         patterns:

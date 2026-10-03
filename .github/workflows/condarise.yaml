@@ -21,6 +21,9 @@ on:
         required: false
         type: string
         default: deploy/conda/env/yaml
+    secrets:
+      ANACONDA_UPLOAD_TOKEN:
+        required: true
 
 jobs:
   conda_deploy:
@@ -46,17 +49,17 @@ jobs:
       - name: 🏷️ Set dev flags
         run: |
           set -euo pipefail
-          echo "CONDA_DEV_CHANNEL=" >> $GITHUB_ENV
-          echo "ANACONDA_LABEL=" >> $GITHUB_ENV
+          echo "CONDA_DEV_CHANNEL=" >> "$GITHUB_ENV"
+          echo "ANACONDA_LABEL=" >> "$GITHUB_ENV"
           # 4-part version (x.y.z.9XXX) => dev; 3-part (x.y.z) => main
           if [[ "${INPUTS_PKG_VERSION}" == *.*.*.* ]]; then
-            echo "CONDA_DEV_CHANNEL=--channel ${INPUTS_CONDA_ORG}/label/dev" >> $GITHUB_ENV
-            echo "ANACONDA_LABEL=--channel dev" >> $GITHUB_ENV
+            echo "CONDA_DEV_CHANNEL=--channel ${INPUTS_CONDA_ORG}/label/dev" >> "$GITHUB_ENV"
+            echo "ANACONDA_LABEL=--channel dev" >> "$GITHUB_ENV"
           fi
       - name: 👾 Miniforge setup
         uses: conda-incubator/setup-miniconda@be893c923ea9cf1cf7cd510fbdde27c7e18cbdcb # v4.1.0
         with:
-          auto-update-conda: true
+          auto-update-conda: false # keep the pinned Miniforge base
           environment-file: ${{ inputs.dir_conda_env_yaml }}/condabuild.yaml
           activate-environment: condabuild_env
           miniforge-version: 26.1.0-0 # need to use mamba < 2.6.0 - see conda/conda-lock#906
@@ -64,34 +67,52 @@ jobs:
         run: |
           rattler-build build \
             ${CONDA_DEV_CHANNEL} \
-            --channel ${INPUTS_CONDA_ORG} \
+            --channel "${INPUTS_CONDA_ORG}" \
             --channel conda-forge \
-            --recipe ${INPUTS_DIR_CONDA_RECIPE}/recipe.yaml \
-            --output-dir ${RUNNER_TEMP}/out1
+            --recipe "${INPUTS_DIR_CONDA_RECIPE}/recipe.yaml" \
+            --output-dir "${RUNNER_TEMP}/out1"
       - name: 🐍 Conda pkg upload
         env:
           ANACONDA_API_KEY: ${{ secrets.ANACONDA_UPLOAD_TOKEN }}
         run: |
           set -euo pipefail
-          pkg_path=$(find ${RUNNER_TEMP}/out1 -type f -name "*.conda")
-          rattler-build upload anaconda \
-            --owner ${INPUTS_CONDA_ORG} \
-            --api-key "${ANACONDA_API_KEY}" \
-            ${ANACONDA_LABEL} \
-            ${pkg_path}
+          # Skip files Anaconda already has, so a re-run after a later step
+          # failed does not die on the duplicate. Not --force: the published
+          # file's sha256 may already be pinned in a lockfile.
+          while IFS= read -r pkg_path; do
+            fname="$(basename "${pkg_path}")"           # <name>-<version>-<build>.conda
+            subdir="$(basename "$(dirname "${pkg_path}")")"
+            stem="${fname%.conda}"
+            name_ver="${stem%-*}"
+            name="${name_ver%-*}"
+            ver="${name_ver##*-}"
+            status=$(curl -s -o /dev/null -w '%{http_code}' \
+              -H "Authorization: token ${ANACONDA_API_KEY}" \
+              "https://api.anaconda.org/dist/${INPUTS_CONDA_ORG}/${name}/${ver}/${subdir}/${fname}" || true)
+            if [[ "${status}" == "200" ]]; then
+              echo "${subdir}/${fname} already on anaconda.org/${INPUTS_CONDA_ORG}; skipping upload"
+              continue
+            fi
+            rattler-build upload anaconda \
+              --owner "${INPUTS_CONDA_ORG}" \
+              --api-key "${ANACONDA_API_KEY}" \
+              ${ANACONDA_LABEL} \
+              "${pkg_path}"
+          done < <(find "${RUNNER_TEMP}/out1" -type f -name "*.conda")
       - name: 🔒 Conda lock
         run: |
           set -euo pipefail
           conda-lock lock \
-            --file ${INPUTS_DIR_CONDA_ENV_YAML}/${INPUTS_PKG_NAME}.yaml \
+            --file "${INPUTS_DIR_CONDA_ENV_YAML}/${INPUTS_PKG_NAME}.yaml" \
             ${CONDA_DEV_CHANNEL} \
-            --channel ${INPUTS_CONDA_ORG} \
+            --channel "${INPUTS_CONDA_ORG}" \
             --channel conda-forge \
             -p linux-64 \
             -p linux-aarch64
           for plat in linux-64 linux-aarch64; do
-            conda-lock render -p ${plat} conda-lock.yml \
-              && mv conda-${plat}.lock "${RUNNER_TEMP}/"
+            # Separate lines: set -e ignores a failure on the left of &&.
+            conda-lock render -p "${plat}" conda-lock.yml
+            mv "conda-${plat}.lock" "${RUNNER_TEMP}/"
           done
           rm conda-lock.yml
       - name: 📦 Publish lockfiles to release
@@ -116,6 +137,10 @@ jobs:
           done
           if gh release view "${tag}" --json tagName >/dev/null 2>&1; then
             gh release upload "${tag}" "${assets[@]}" --clobber
+            # Release may predate this run (e.g. created by hand); still flag dev.
+            if [[ -n "${prerelease}" ]]; then
+              gh release edit "${tag}" --prerelease
+            fi
           else
             gh release create "${tag}" \
               --verify-tag \

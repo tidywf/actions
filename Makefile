@@ -32,8 +32,18 @@ check-clean:
 check-branch:
 	@[[ "$$(git rev-parse --abbrev-ref HEAD)" == "main" ]] || \
 		{ echo "Not on main (on '$$(git rev-parse --abbrev-ref HEAD)'). Release from main."; exit 1; }
+	@git fetch --quiet origin main
+	@[[ "$$(git rev-parse HEAD)" == "$$(git rev-parse origin/main)" ]] || \
+		{ echo "HEAD is not origin/main; push or pull first."; exit 1; }
 
+# Query origin directly rather than `git fetch --tags`: release.yaml
+# force-moves the `vX` alias, and fetch refuses to clobber a changed local tag.
 check-tag:
-	@git fetch --tags --quiet
 	@! git rev-parse -q --verify "refs/tags/$(TAG)" >/dev/null || \
-		{ echo "Tag $(TAG) already exists."; exit 1; }
+		{ echo "Tag $(TAG) already exists locally."; exit 1; }
+	@rc=0; git ls-remote --exit-code --tags origin "refs/tags/$(TAG)" >/dev/null || rc=$$?; \
+	case $$rc in \
+		2) ;; \
+		0) echo "Tag $(TAG) already exists on origin."; exit 1 ;; \
+		*) echo "git ls-remote failed (exit $$rc); cannot verify tag on origin."; exit 1 ;; \
+	esac
