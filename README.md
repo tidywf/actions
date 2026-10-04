@@ -234,7 +234,12 @@ unset so Anaconda defaults to the `main` label.
 
 **Conda lock platforms**: lock files are generated for `linux-64` and
 `linux-aarch64` only (server targets). Docker images are also built for both
-(`linux/amd64`, `linux/arm64`).
+(`linux/amd64`, `linux/arm64`), each on a native runner (`ubuntu-24.04` /
+`ubuntu-24.04-arm`, no QEMU) that pushes its image by digest; a `merge` job
+then creates the tagged multi-arch index with `docker buildx imagetools
+create`. There is deliberately no `type=gha` layer cache: tag-triggered runs
+can only restore caches from the same tag or the default branch, so one
+release's cache is never visible to the next.
 
 **Release-asset contract**: `condarise.yaml` publishes lock files named
 `<pkg_name>-vX.Y.Z-conda-<platform>.lock` and `dockerise.yaml` matches on that
