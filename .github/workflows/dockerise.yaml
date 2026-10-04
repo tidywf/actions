@@ -185,6 +185,7 @@ jobs:
     needs: [docker_build]
     runs-on: ubuntu-latest
     permissions:
+      contents: read # metadata-action repo defaults
       packages: write
 
     steps:
