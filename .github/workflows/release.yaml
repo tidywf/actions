@@ -20,7 +20,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: 🚚 Codeout # zizmor: ignore[artipacked] -- needs creds to push the alias tag
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@v7.0.1
         with:
           fetch-tags: true # local copy of the pushed tag for `git tag -f`
       - name: Move major-version alias tag
